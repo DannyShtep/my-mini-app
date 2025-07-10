@@ -161,6 +161,8 @@
     tg.ready();
     const user = tg.initDataUnsafe?.user || { username: 'guest', photo_url: '' };
 
+    let countdownStarted = false;
+
     document.getElementById('addGiftBtn').addEventListener('click', () => {
       alert('Подарок добавлен: самый дешевый NFT!');
       if (!players.find(p => p.username === user.username)) {
@@ -170,6 +172,7 @@
           ton: Math.floor(Math.random() * 50) + 10
         });
         renderPlayers();
+        checkAndStartGame();
       }
     });
 
@@ -201,7 +204,12 @@
       }, 1000);
     }
 
-    countdownToSpin();
+    function checkAndStartGame() {
+      if (players.length >= 2 && !countdownStarted) {
+        countdownStarted = true;
+        countdownToSpin();
+      }
+    }
 
     const canvas = document.getElementById("wheel");
     const ctx = canvas.getContext("2d");

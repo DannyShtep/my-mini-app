@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini App NFT Game</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <h1>Мини-приложение NFT Рулетка</h1>
+  <p>Пример простого интерфейса.</p>
+
+  <label for="giftName">Название подарка NFT:</label><br />
+  <input type="text" id="giftName" placeholder="Введите название" /><br /><br />
+
+  <label for="giftPrice">Цена в TON:</label><br />
+  <input type="number" id="giftPrice" placeholder="Введите цену" /><br /><br />
+
+  <button id="sendGift">Отправить подарок боту</button>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+
+    document.getElementById("sendGift").onclick = () => {
+      const name = document.getElementById("giftName").value.trim();
+      const price = document.getElementById("giftPrice").value.trim();
+
+      if (!name || !price || isNaN(price) || Number(price) <= 0) {
+        alert("Введите корректные название и цену подарка");
+        return;
+      }
+
+      const dataToSend = JSON.stringify({ name: name, price: Number(price) });
+
+      tg.sendData(dataToSend);
+    };
+
+    tg.ready();
+  </script>
+</body>
+</html>

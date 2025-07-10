@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>TON PvP Рулетка</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@tonconnect/sdk@latest/dist/tonconnect-sdk.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: 'Arial', sans-serif;
+      overflow-x: hidden;
+    }
+    #top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      font-size: 4vw;
+    }
+    #profileBtn, #tonConnectBtn, #tonBalance {
+      background: #00ffcc;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #000;
+      font-size: 4vw;
+    }
+    #tonBalance {
+      background: #222;
+      border: 1px solid #00ffcc;
+      color: #fff;
+    }
+    #bottom-bar {
+      position: fixed;
+      bottom: 10px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      font-size: 4vw;
+    }
+    #bottom-bar button {
+      background: #222;
+      border: 1px solid #00ffcc;
+      color: #00ffcc;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 4vw;
+      cursor: pointer;
+    }
+    #roulette-container {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+    }
+    canvas {
+      width: 80vw;
+      height: 80vw;
+      border-radius: 50%;
+    }
+    #arrow {
+      position: absolute;
+      top: calc(50% - 40vw);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 20px solid transparent;
+      border-right: 20px solid transparent;
+      border-bottom: 30px solid #ff0;
+      z-index: 10;
+    }
+    #resultModal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #111;
+      border: 2px solid #00ffcc;
+      border-radius: 12px;
+      padding: 20px;
+      color: #fff;
+      z-index: 1000;
+      width: 90vw;
+      text-align: center;
+      box-shadow: 0 0 10px #00ffcc;
+    }
+    #resultModal img {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      margin-bottom: 10px;
+    }
+    #nftIcons img {
+      width: 40px;
+      height: 40px;
+      margin: 4px;
+    }
+    #closeModal {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      color: #00ffcc;
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="top-bar">
+    <button id="profileBtn">Мой профиль</button>
+    <button id="tonConnectBtn">Подключить TON</button>
+    <div id="tonBalance" style="display:none;">Баланс: -- TON</div>
+  </div>
+
+  <div id="roulette-container">
+    <div id="arrow"></div>
+    <canvas id="wheel" width="500" height="500"></canvas>
+  </div>
+
+  <div id="resultModal">
+    <button id="closeModal">✕</button>
+    <img id="winnerPhoto" src="" alt="Фото">
+    <h2 id="winnerName">@username</h2>
+    <p id="winnerAmount">Ставка: 0 TON</p>
+    <div id="nftIcons"></div>
+  </div>
+
+  <div id="bottom-bar">
+    <button id="historyBtn">История</button>
+    <button id="inventoryBtn">Инвентарь</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    let angle = 0;
+    let spinning = false;
+
+    function drawWheel() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const colors = ['#ff4444', '#44ff44', '#4444ff', '#ffaa00', '#00ffaa', '#ff00aa'];
+      const segments = 6;
+      const arc = (2 * Math.PI) / segments;
+
+      for (let i = 0; i < segments; i++) {
+        const start = angle + i * arc;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, canvas.height / 2);
+        ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width / 2 - 10, start, start + arc);
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+
+    function easeOut(t) {
+      return 1 - Math.pow(1 - t, 4);
+    }
+
+    function spinWheel() {
+      if (spinning) return;
+      spinning = true;
+      const duration = 5000;
+      const start = performance.now();
+      const fullRotations = 6;
+      const targetAngle = Math.random() * 2 * Math.PI;
+
+      function animate(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = easeOut(progress);
+        angle = (2 * Math.PI * fullRotations * eased + targetAngle) % (2 * Math.PI);
+        drawWheel();
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          spinning = false;
+          showWinnerModal({
+            username: "demo",
+            photo: "https://api.dicebear.com/7.x/identicon/svg?seed=demo",
+            totalTon: 12,
+            nftImages: [
+              "https://via.placeholder.com/40",
+              "https://via.placeholder.com/40"
+            ]
+          });
+          setTimeout(() => {
+            if (true) spinWheel(); // simulate infinite game if 2+ players
+          }, 4200);
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    drawWheel();
+    setTimeout(spinWheel, 1000); // автостарт через 1 сек
+
+    const connectBtn = document.getElementById('tonConnectBtn');
+    const balanceBox = document.getElementById('tonBalance');
+    const connector = new TON_CONNECT.TonConnect();
+
+    connectBtn.onclick = async () => {
+      await connector.connectWallet();
+    };
+
+    connector.onStatusChange(async wallet => {
+      if (wallet?.account?.address) {
+        connectBtn.style.display = "none";
+        balanceBox.style.display = "block";
+
+        const address = wallet.account.address;
+        const res = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${address}`);
+        const data = await res.json();
+        const tonBalance = Number(data.result) / 1e9;
+        balanceBox.textContent = `Баланс: ${tonBalance.toFixed(2)} TON`;
+      }
+    });
+
+    function showWinnerModal({ username, photo, totalTon, nftImages }) {
+      document.getElementById('winnerPhoto').src = photo;
+      document.getElementById('winnerName').textContent = '@' + username;
+      document.getElementById('winnerAmount').textContent = `Ставка: ${totalTon} TON`;
+      const icons = document.getElementById('nftIcons');
+      icons.innerHTML = '';
+      nftImages.forEach(img => {
+        const icon = document.createElement('img');
+        icon.src = img;
+        icons.appendChild(icon);
+      });
+      document.getElementById('resultModal').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('resultModal').style.display = 'none';
+      }, 4000);
+    }
+
+    document.getElementById('closeModal').onclick = () => {
+      document.getElementById('resultModal').style.display = 'none';
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<title>NFT Рулетка</title>
+<meta content="width=device-width, initial-scale=1.0, user-scalable=no" name="viewport"/>
+<style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: "Arial", sans-serif;
+      background: #0c0c15;
+      color: white;
+      overflow-x: hidden;
+    }
+    .app {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      padding-bottom: 100px; /* для нижнего меню */
+    }
+    .header {
+      background: #1a1a25;
+      border-radius: 12px;
+      padding: 10px 20px;
+      margin-bottom: 10px;
+      font-size: 20px;
+    }
+    .wheel-container {
+      position: relative;
+      width: 340px;
+      height: 340px;
+      margin-top: 20px;
+    }
+    #wheel {
+      width: 100%;
+      height: 100%;
+    }
+    .pointer {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-bottom: 20px solid #fff;
+    }
+    .center-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border-radius: 50%;
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 20px;
+      pointer-events: none;
+    }
+    .status {
+      margin: 20px 0 10px;
+      font-size: 20px;
+    }
+    .players-list {
+      background: #1a1a25;
+      border-radius: 10px;
+      padding: 10px;
+      width: 100%;
+      max-width: 320px;
+      margin-bottom: 20px;
+    }
+    .player {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .player img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    .player-info {
+      display: flex;
+      justify-content: space-between;
+      flex: 1;
+    }
+    .button {
+      background: #2d6cf6;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 20px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    .button:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+    .emojis {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin: 30px 0 10px;
+      font-size: 22px;
+    }
+    .emoji {
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .emoji:hover {
+      transform: scale(1.4);
+    }
+    .nav-bar {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      background: #111;
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0;
+      border-top: 1px solid #333;
+    }
+    .nav-item {
+      color: white;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .nav-item span {
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+<div class="header"><span id="giftCount">0</span> гифтов | <span id="giftValue">0</span> TON</div>
+<div class="wheel-container">
+<canvas height="300" id="wheel" width="300"></canvas>
+<div class="pointer"></div>
+<div class="center-label">ИГРА</div>
+</div>
+<div class="status" id="status">Ожидание игроков...</div>
+<button class="button" id="addGiftBtn" onclick="addFakeGift()">Добавить гифт</button>
+<div class="emojis">
+<div class="emoji">😭</div>
+<div class="emoji">🤔</div>
+<div class="emoji">💀</div>
+<div class="emoji">😂</div>
+<div class="emoji">💩</div>
+<div class="emoji">🤡</div>
+</div>
+<div class="players-list" id="playersList"></div>
+</div>
+<div class="nav-bar">
+<div class="nav-item"><span>🤍</span>PvP</div>
+<div class="nav-item"><span>⚠️</span>Rolls</div>
+<div class="nav-item"><span>🎁</span>Мои гифты</div>
+<div class="nav-item"><span>🛒</span>Магазин</div>
+<div class="nav-item"><span>💰</span>Заработок</div>
+</div>
+<script>
+    const canvas = document.getElementById('wheel');
+    const ctx = canvas.getContext('2d');
+    const radius = canvas.width / 2;
+    let players = [];
+    let totalWeight = 0;
+    let isSpinning = false;
+
+    const avatars = [
+      "https://randomuser.me/api/portraits/men/1.jpg",
+      "https://randomuser.me/api/portraits/women/2.jpg",
+      "https://randomuser.me/api/portraits/men/3.jpg",
+      "https://randomuser.me/api/portraits/women/4.jpg",
+      "https://randomuser.me/api/portraits/men/5.jpg"
+    ];
+
+    function drawWheel(rotation = 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(radius, radius);
+      ctx.rotate(rotation);
+      ctx.translate(-radius, -radius);
+
+      if (players.length < 2) {
+        // Серое колесо
+        ctx.beginPath();
+        ctx.arc(radius, radius, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#333';
+        ctx.fill();
+      } else {
+        let startAngle = 0;
+        players.forEach(player => {
+          const sliceAngle = 2 * Math.PI * player.weight / totalWeight;
+          ctx.beginPath();
+          ctx.moveTo(radius, radius);
+          ctx.arc(radius, radius, radius, startAngle, startAngle + sliceAngle);
+          ctx.fillStyle = player.color;
+          ctx.fill();
+
+          // добавить аватар
+          const img = new Image();
+          img.src = player.avatar;
+          const midAngle = startAngle + sliceAngle / 2;
+          const imgX = radius + Math.cos(midAngle) * (radius * 0.65) - 20;
+          const imgY = radius + Math.sin(midAngle) * (radius * 0.65) - 20;
+          img.onload = () => {
+            ctx.drawImage(img, imgX, imgY, 40, 40);
+          };
+
+          startAngle += sliceAngle;
+        });
+      }
+
+      ctx.restore();
+    }
+
+    function updatePlayerList() {
+      const list = document.getElementById('playersList');
+      list.innerHTML = "";
+      players.forEach(p => {
+        const percent = (p.weight * 100 / totalWeight).toFixed(1);
+        list.innerHTML += \`
+          <div class="player">
+            <img src="\${p.avatar}" />
+            <div class="player-info">
+              <div>@\${p.name}</div>
+              <div>\${percent}%</div>
+            </div>
+          </div>
+        \`;
+      });
+    }
+
+    document.getElementById('addBtn').addEventListener('click', () => {
+      if (isSpinning) return;
+      addPlayer();
+    });
+
+    function addPlayer() {
+      const newPlayer = {
+        name: "user" + Math.floor(Math.random() * 1000),
+        avatar: avatars[Math.floor(Math.random() * avatars.length)],
+        weight: Math.floor(Math.random() * 100 + 10),
+        color: '#'+Math.floor(Math.random()*16777215).toString(16)
+      };
+      players.push(newPlayer);
+      totalWeight = players.reduce((sum, p) => sum + p.weight, 0);
+      drawWheel(0);
+      updatePlayerList();
+      if (players.length >= 2) {
+        document.getElementById('status').innerText = "Игра начнется...";
+        setTimeout(() => spinWheel(), 1000);
+      }
+    }
+
+    function spinWheel() {
+      isSpinning = true;
+      const winner = getRandomWinner();
+      const sliceStart = players.slice(0, players.indexOf(winner))
+        .reduce((sum, p) => sum + p.weight, 0);
+      const sliceAngleStart = 2 * Math.PI * (sliceStart / totalWeight);
+      const sliceAngleMiddle = sliceAngleStart + Math.PI * (winner.weight / totalWeight);
+      const fullRotation = 2 * Math.PI * 5; // 5 оборотов
+      const finalAngle = fullRotation + (Math.PI * 1.5 - sliceAngleMiddle);
+
+      const duration = 10000; // 10 секунд
+      const start = performance.now();
+
+      function animate(now) {
+        const elapsed = now - start;
+        const t = Math.min(elapsed / duration, 1);
+        // easeInOutQuad
+        const eased = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+        const currentRotation = eased * finalAngle;
+        drawWheel(currentRotation);
+        if (t < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          document.getElementById('status').innerText = "Победил: @" + winner.name;
+          isSpinning = false;
+        }
+      }
+      document.getElementById('status').innerText = "Крутится...";
+      requestAnimationFrame(animate);
+    }
+
+    function getRandomWinner() {
+      const rand = Math.random() * totalWeight;
+      let sum = 0;
+      for (const p of players) {
+        sum += p.weight;
+        if (rand <= sum) return p;
+      }
+      return players[players.length - 1];
+    }
+
+    // Инициализация
+    drawWheel(0);
+  
+let players = [];
+
+function addFakeGift() {
+  const price = parseFloat((Math.random() * 10 + 1).toFixed(2)); // Цена от 1 до 11 TON
+  const avatar = "https://api.dicebear.com/7.x/pixel-art/svg?seed=" + Math.floor(Math.random()*1000); // Аватар
+  const color = "#" + Math.floor(Math.random()*16777215).toString(16); // Рандомный цвет
+
+  players.push({
+    price,
+    avatar,
+    color
+  });
+
+  // Обновить счётчик
+  const totalGifts = players.length;
+  const totalValue = players.reduce((sum, p) => sum + p.price, 0).toFixed(2);
+  document.getElementById("giftCount").textContent = totalGifts;
+  document.getElementById("giftValue").textContent = totalValue;
+
+  drawWheel(players.length);
+}
+
+// Модифицируем drawWheel для отображения секторов
+function drawWheel(playersCount) {
+  const canvas = document.getElementById('wheelCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = canvas.width / 2 - 5;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (players.length < 2) {
+    // серое ожидание
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = "#444";
+    ctx.fill();
+    ctx.strokeStyle = "#888";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    return;
+  }
+
+  const total = players.reduce((sum, p) => sum + p.price, 0);
+  let startAngle = 0;
+
+  players.forEach((player) => {
+    const sliceAngle = 2 * Math.PI * (player.price / total);
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+    ctx.closePath();
+    ctx.fillStyle = player.color;
+    ctx.fill();
+
+    // Рисуем аватар в секторе
+    const midAngle = startAngle + sliceAngle / 2;
+    const imgX = centerX + (radius / 2) * Math.cos(midAngle) - 15;
+    const imgY = centerY + (radius / 2) * Math.sin(midAngle) - 15;
+    const img = new Image();
+    img.src = player.avatar;
+    img.onload = () => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgX + 15, imgY + 15, 15, 0, 2 * Math.PI);
+      ctx.clip();
+      ctx.drawImage(img, imgX, imgY, 30, 30);
+      ctx.restore();
+    };
+
+    startAngle += sliceAngle;
+  });
+}
+</script>
+</body>
+</html>
